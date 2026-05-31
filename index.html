@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="auth-block">
+        <h3>Регистрация</h3>
+        <input type="text" id="reg-name" placeholder="Логин">
+        <input type="password" id="reg-pass" placeholder="Пароль">
+        <button onclick="register()">Зарегистрироваться</button>
+        <div id="reg-out"></div>
+        <hr>
+
+        <h3>Вход</h3>
+        <input type="text" id="log-name" placeholder="Логин">
+        <input type="password" id="log-pass" placeholder="Пароль">
+        <button onclick="login()">Войти</button>
+        <div id="log-out"></div>
+    </div>
+
+
+    <div id="main-block" style="display: none;">
+        <h2>Main</h2>
+        <div id="welcome-msg" style="color: green; font-weight: bold;"></div>
+        <br>
+        <button onclick="logout()" style="background-color: red;color: white;">Выйти</button>
+        <hr>
+
+        <h3>Все пользователи</h3>
+        <button onclick="getUsers()">Показать всех</button>
+        <div id="users-out"></div>
+        <hr>
+
+        <h3>Статистика пользователей</h3>
+        <button onclick="getStats()">Получить статистику</button>
+        <div id="stats-out"></div>
+        <hr>
+
+        <h3>Поиск пользователей</h3>
+        <input type="text" id="search-text" placeholder="Имя для поиска">
+        <button onclick="searchUsers()">Искать</button>
+        <div id="search-out"></div>
+        <hr>
+
+        <h3>Сортировка</h3>
+        <button onclick="sortUsers('asc')">Сортировать (А-Я)</button>
+        <button onclick="sortUsers('desc')">Сортировать (Я-А)</button>
+        <div id="sort-out"></div>
+        <hr>
+
+        <h3>Удаление по ID</h3>
+        <input type="number" id="delete-id" placeholder="ID пользователя">
+        <button onclick="deleteUser()">Удалить</button>
+        <div id="delete-out"></div>
+    </div>
+
+    <script>
+        const URL = "http://127.0.0.1:8000";
+
+        if (localStorage.getItem("log")) {
+            unlock(localStorage.getItem("log"));
+        }
+
+        function unlock(message) {
+            localStorage.setItem("log", message);
+            document.getElementById("auth-block").style.display = "none";
+            document.getElementById("main-block").style.display = "block";
+            document.getElementById("welcome-msg").innerText = message;
+        }
+
+        function logout() {
+            localStorage.removeItem("log");
+            location.reload();
+        }
+
+        async function register() {
+            window.event.preventDefault();
+            const u = document.getElementById("reg-name").value;
+            const p = document.getElementById("reg-pass").value;
+            
+            const res = await fetch(`${URL}/users`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: u, password: p })
+            });
+
+            const data = await res.json();
+            
+            if (data.error) {
+                document.getElementById("reg-out").style.color = "red";
+                document.getElementById("reg-out").innerText = "Ошибка: "+data.error;
+            } else {
+                unlock("Вы успешно зарегистрировались! ID: " + data.id);
+            }
+        }
+
+        async function login() {
+            window.event.preventDefault();
+            const u = document.getElementById("log-name").value;
+            const p = document.getElementById("log-pass").value;
+            
+            const res = await fetch(`${URL}/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: u, password: p, role: "user" })
+            });
+
+
+            const data = await res.json();
+            
+            if (data.error) {
+                document.getElementById("log-out").style.color = "red";
+                document.getElementById("log-out").innerText = "Ошибка: " + data.error;
+            } else {
+                unlock("Вход выполнен успешно! Добро пожаловать, " + u);
+            }
+        }
+
+        async function getUsers() {
+            const res = await fetch(`${URL}/users`);
+            const data = await res.json();
+            document.getElementById("users-out").innerText = JSON.stringify(data);
+        }
+
+        async function getStats() {
+            const res = await fetch(`${URL}/users/stats`);
+            const data = await res.json();
+            document.getElementById("stats-out").innerText = JSON.stringify(data);
+        }
+
+        async function searchUsers() {
+            const txt = document.getElementById("search-text").value;
+            const res = await fetch(`${URL}/users/search?text=${txt}`);
+            const data = await res.json();
+            document.getElementById("search-out").innerText = JSON.stringify(data);
+        }
+
+        async function sortUsers(order) {
+            const res = await fetch(`${URL}/users/sort?order=${order}`);
+            const data = await res.json();
+            document.getElementById("sort-out").innerText = JSON.stringify(data);
+        }
+
+        async function deleteUser() {
+
+            const id = document.getElementById("delete-id").value;
+        
+            const res = await fetch(`${URL}/users/${id}`, {
+                method: "DELETE"
+            });
+
+            const data = await res.json();
+            
+            if (data.error) {
+                document.getElementById("delete-out").innerText = "Ошибка: " + data.error;
+            } else {
+                document.getElementById("delete-out").innerText = data.message;
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+
