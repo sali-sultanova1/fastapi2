@@ -274,6 +274,7 @@
 
         async function level5Delete(id) {
             await fetch(`${URL}/users/${id}`, { method: "DELETE" });
+            showNotification(`Пользователь с ID ${id} удален`, true);
             getUsers();
             loadLevel5Users();
         }
@@ -287,8 +288,8 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ password: newPass })
             });
-            
-            showNotification("Пароль изменен", true);
+
+            showNotification(`Пароль для ID ${id} изменен`, true);
         }
     </script>
 </body>
