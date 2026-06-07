@@ -6,6 +6,7 @@
     <title>Document</title>
 </head>
 <body>
+    <h1>Панель Управлния</h1>
     <div id="auth-block">
         <h3>Регистрация</h3>
         <input type="text" id="reg-name" placeholder="Логин">
@@ -29,15 +30,41 @@
         <button onclick="logout()" style="background-color: red;color: white;">Выйти</button>
         <hr>
 
-        <h3>Все пользователи</h3>
-        <button onclick="getUsers()">Показать всех</button>
-        <div id="users-out"></div>
+        <h2>Уведомления</h2>
+        <div id="notifications" class="notification-zone" style="display: none;"></div>
         <hr>
 
+
+        <h2>Блок управления</h2>
+
+        <h3>Все пользователи</h3>
+        <h3>Уровень 4</h3>
+        <table id="users-table">
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+            </tr>
+        </table>
+
+        <h3>Уровень 2</h3>
+        <div id="users-cards-container" class="cards-container">
+            <div>Пользователей нет</div>
+        </div>
+
+        <button onclick="getUsers()">Получить и обновить список</button>
+
+
+
         <h3>Статистика пользователей</h3>
+     
+        <button onclick="getUsersCount()">Показать количество пользователей</button> 
+        <span id="stats-count-out"></span>
+        <br><br>
+
         <button onclick="getStats()">Получить статистику</button>
         <div id="stats-out"></div>
         <hr>
+
 
         <h3>Поиск пользователей</h3>
         <input type="text" id="search-text" placeholder="Имя для поиска">
@@ -55,7 +82,18 @@
         <input type="number" id="delete-id" placeholder="ID пользователя">
         <button onclick="deleteUser()">Удалить</button>
         <div id="delete-out"></div>
+    
+
+        <div class="level-5">
+            <h2>Уровень 5</h2>
+            <button onclick="loadLevel5Users()">Обновить панель</button>
+            <div id="level5-users-container"></div>
+        </div>
+
     </div>
+
+    
+
 
     <script>
         const URL = "http://127.0.0.1:8000";
@@ -69,6 +107,9 @@
             document.getElementById("auth-block").style.display = "none";
             document.getElementById("main-block").style.display = "block";
             document.getElementById("welcome-msg").innerText = message;
+            showNotification("Вход выполнен успешно!", true);
+            getUsers();
+            loadLevel5Users();
         }
 
         function logout() {
@@ -119,17 +160,67 @@
             }
         }
 
+        function showNotification(text, isSuccess = true) {
+            const el = document.getElementById("notifications");
+            el.innerText = text;
+            el.className = "notification-zone " + (isSuccess ? "success" : "error");
+            el.style.display = "block";
+        }
+
+
+
+        function update(usersData) {
+            const table = document.getElementById("users-table");
+            const cardsContainer = document.getElementById("users-cards-container");
+
+            table.innerHTML = "<tr><th>ID</th><th>Username</th></tr>";
+            cardsContainer.innerHTML = "";
+
+            if (!usersData || usersData.length === 0 || usersData.error) {
+                cardsContainer.innerHTML = "<div>Пользователей нет</div>";
+                return;
+            }
+
+            let arr = usersData;
+            if (!Array.isArray(usersData)) {
+                arr = [usersData];
+            }
+
+            arr.forEach(user => {
+                table.innerHTML += `
+                    <tr>
+                        <td>${user.id}</td>
+                        <td>${user.username}</td>
+                    </tr>`;
+
+                cardsContainer.innerHTML += `
+                    <div class="user-card">
+                        <p><b>${user.username}</b></p>
+                        <p>ID: ${user.id}</p>
+                    </div>`;
+            });
+        }
+
+
         async function getUsers() {
             const res = await fetch(`${URL}/users`);
             const data = await res.json();
-            document.getElementById("users-out").innerText = JSON.stringify(data);
+            update(data);
         }
+
+        async function getUsersCount() {
+            const res = await fetch(`${URL}/users/count`);
+            const data = await res.json();
+            document.getElementById("stats-count-out").innerText = data.count;
+        }
+
 
         async function getStats() {
             const res = await fetch(`${URL}/users/stats`);
             const data = await res.json();
             document.getElementById("stats-out").innerText = JSON.stringify(data);
         }
+
 
         async function searchUsers() {
             const txt = document.getElementById("search-text").value;
@@ -145,9 +236,7 @@
         }
 
         async function deleteUser() {
-
             const id = document.getElementById("delete-id").value;
-        
             const res = await fetch(`${URL}/users/${id}`, {
                 method: "DELETE"
             });
@@ -155,10 +244,51 @@
             const data = await res.json();
             
             if (data.error) {
-                document.getElementById("delete-out").innerText = "Ошибка: " + data.error;
+                showNotification("Ошибка: "+ data.error, false);
             } else {
-                document.getElementById("delete-out").innerText = data.message;
+                showNotification(data.message || "Пользователь удален", true);
+                document.getElementById("delete-id").value = "";
+                getUsers();
+                loadLevel5Users();
             }
+        }
+
+
+        async function loadLevel5Users() {
+            const res = await fetch(`${URL}/users`);
+            const data = await res.json();
+            
+            const container = document.getElementById("level5-users-container");
+            container.innerHTML = "";
+
+            data.forEach(user => {
+                container.innerHTML += `
+                    <p>
+                        <span>ID: ${user.id} Логин: ${user.username}</span>
+                        <button onclick="level5Delete(${user.id})">Удалить</button>
+                        <button onclick="level5Edit(${user.id})">Изменить пароль</button>
+                    </p>
+                `;
+            });
+        }
+
+        async function level5Delete(id) {
+            await fetch(`${URL}/users/${id}`, { method: "DELETE" });
+            getUsers();
+            loadLevel5Users();
+        }
+
+        async function level5Edit(id) {
+            const newPass = prompt("Введите новый пароль:");
+            if (!newPass) return;
+
+            await fetch(`${URL}/users/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password: newPass })
+            });
+            
+            showNotification("Пароль изменен", true);
         }
     </script>
 </body>
