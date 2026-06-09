@@ -86,12 +86,14 @@
         <div id="search-out"></div>
         <hr>
 
+        
         <h3>Сортировка</h3>
-        <button onclick="sortUsers('asc')">Сортировать (А-Я)</button>
-        <button onclick="sortUsers('desc')">Сортировать (Я-А)</button>
-        <button onclick="sortUsersByDate('new')">Сначала новые</button>
-        <button onclick="sortUsersByDate('old')">Сначала старые</button>
-        <div class="sort-block"></div>
+        <button onclick="sortUsers('username', 'asc')">Сортировать (А-Я)</button>
+        <button onclick="sortUsers('username', 'desc')">Сортировать (Я-А)</button>
+        <button onclick="sortUsers('createdAt', 'desc')">Сначала новые</button>
+        <button onclick="sortUsers('createdAt', 'asc')">Сначала старые</button>
+        <div id="sort-out" class="sort-block"></div>
+
     
 
         <h3>Удаление по ID</h3>
@@ -117,8 +119,7 @@
         const URL = "http://127.0.0.1:8000";
 
         if (localStorage.getItem("log")) {
-            unlock(localStorage.getItem("log")),
-            localStorage.getItem("role")
+            unlock(localStorage.getItem("log"), localStorage.getItem("role"));
         }
 
         if (localStorage.getItem("theme") === "dark") {
@@ -210,13 +211,17 @@
 
 
         async function createUser() {
+            if (window.event) window.event.preventDefault(); 
+            
             const u = document.getElementById("create-name").value;
             const p = document.getElementById("create-pass").value;
+            const registrationDate = new Date().toISOString(); 
+
 
             const res = await fetch(`${URL}/users`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: u, password: p, role: "user" })
+                body: JSON.stringify({ username: u, password: p, role: "user", createdAt: registrationDate})
              });
              
             const data = await res.json();
@@ -331,8 +336,10 @@
 
 
 
-        async function sortUsers(order) {
-            const res = await fetch(`${URL}/users/sort?order=${order}`);
+
+
+        async function sortUsers(sortBy, order) {
+            const res = await fetch(`${URL}/users/sort?sortBy=${sortBy}&order=${order}`);
             const data = await res.json();
             const sortOut = document.getElementById("sort-out");
             
@@ -343,10 +350,15 @@
             }
             
             data.forEach(user => {
+                const regDate = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—';
+                
                 sortOut.innerHTML += `
-                    <div">${user.username} (ID: ${user.id})</div>`;
+                    <div>${user.username} (ID: ${user.id}) Регистрация: ${regDate}</div>`;
             });
         }
+
+
+
 
 
 

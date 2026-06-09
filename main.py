@@ -47,11 +47,14 @@ def create(data: UserCreate):
     #15
     hashed_pass = hashlib.sha256(data.password.encode()).hexdigest()
 
+    reg_date = data.createdAt if data.createdAt else datetime.utcnow().isoformat() + "Z"
+
     new_user = {
         "id": new_id,
         "username": data.username,
         "password": hashed_pass,
-        "role": data.role
+        "role": data.role,
+        "createdAt": reg_date
     }
 
     users.append(new_user)
@@ -63,7 +66,8 @@ def create(data: UserCreate):
     return {
         "id": new_user["id"],
         "username": new_user["username"],
-        "role": new_user["role"]
+        "role": new_user["role"],
+        "createdAt": new_user["createdAt"]
     }
             
 
@@ -76,7 +80,8 @@ def get_users():
         filtered.append({
             "id": i["id"],
             "username": i["username"],
-            "role": i["role"]
+            "role": i["role"],
+            "createdAt": i.get("createdAt", None)
         })
     return filtered
 
@@ -141,23 +146,22 @@ def get_users_stats():
 
 #9
 @app.get("/users/sort")
-def sort_users(order: str = "asc"):
+def sort_users(sortBy: str = "username", order: str = "asc"):
     users = load_users()
+    is_reverse = True if order == "desc" else False
 
-    temp_list = []
-    for i in users:
-        temp_list.append([i["username"], i["id"], i["role"]])
-    
-    temp_list.sort()
-    if order == "desc":
-        temp_list.reverse()
+    if sortBy == "createdAt":
+        users.sort(key=lambda x: x.get("createdAt", ""), reverse=is_reverse)
+    else:
+        users.sort(key=lambda x: x.get("username", "").lower(), reverse=is_reverse)
 
     clean_users = []
-    for i in temp_list:
+    for i in users:
         clean_users.append({
-            "id": i[1],
-            "username": i[0],
-            "role": i[2]
+            "id": i["id"],
+            "username": i["username"],
+            "role": i["role"],
+            "createdAt": i.get("createdAt", None)
         })
 
     return clean_users
@@ -172,7 +176,8 @@ def get_user(user_id: int):
             return {
                 "id": i["id"],
                 "username": i["username"],
-                "role": i["role"]
+                "role": i["role"],
+                "createdAt": i.get("createdAt", None)
             }
     return {"error": "Пользователь не найден"}
 
