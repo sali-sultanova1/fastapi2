@@ -4,9 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>Панель Управлния</h1>
+
+    <div>
+        <button onclick="themeswitch()">Поменять тему</button>
+    </div>
+
+
+    <h1>Панель Управлeния</h1>
     <div id="auth-block">
         <h3>Регистрация</h3>
         <input type="text" id="reg-name" placeholder="Логин">
@@ -30,12 +37,19 @@
         <button onclick="logout()" style="background-color: red;color: white;">Выйти</button>
         <hr>
 
+        <div id="admin-panel" style="display: none;">
         <h2>Уведомления</h2>
-        <div id="notifications" class="notification-zone" style="display: none;"></div>
+        <div id="notifications" class="notification-zone"></div>
         <hr>
 
 
         <h2>Блок управления</h2>
+
+        <h3>Создать пользователя</h3>
+        <input type="text" id="create-name" placeholder="Логин">
+        <input type="password" id="create-pass" placeholder="Пароль">
+        <button onclick="createUser()">Создать</button>
+        <hr>
 
         <h3>Все пользователи</h3>
         <h3>Уровень 4</h3>
@@ -67,7 +81,7 @@
 
 
         <h3>Поиск пользователей</h3>
-        <input type="text" id="search-text" placeholder="Имя для поиска">
+        <input type="text" id="search-text" placeholder="Имя для поиска" oninput="searchUsers()">
         <button onclick="searchUsers()">Искать</button>
         <div id="search-out"></div>
         <hr>
@@ -75,8 +89,10 @@
         <h3>Сортировка</h3>
         <button onclick="sortUsers('asc')">Сортировать (А-Я)</button>
         <button onclick="sortUsers('desc')">Сортировать (Я-А)</button>
-        <div id="sort-out"></div>
-        <hr>
+        <button onclick="sortUsersByDate('new')">Сначала новые</button>
+        <button onclick="sortUsersByDate('old')">Сначала старые</button>
+        <div class="sort-block"></div>
+    
 
         <h3>Удаление по ID</h3>
         <input type="number" id="delete-id" placeholder="ID пользователя">
@@ -90,6 +106,8 @@
             <div id="level5-users-container"></div>
         </div>
 
+        </div>
+
     </div>
 
     
@@ -99,21 +117,36 @@
         const URL = "http://127.0.0.1:8000";
 
         if (localStorage.getItem("log")) {
-            unlock(localStorage.getItem("log"));
+            unlock(localStorage.getItem("log")),
+            localStorage.getItem("role")
         }
 
-        function unlock(message) {
+        if (localStorage.getItem("theme") === "dark") {
+            document.body.classList.add("dark-theme");
+        }
+
+        function unlock(message, role= "user") {
             localStorage.setItem("log", message);
+            localStorage.setItem("role", role);
+
             document.getElementById("auth-block").style.display = "none";
             document.getElementById("main-block").style.display = "block";
-            document.getElementById("welcome-msg").innerText = message;
-            showNotification("Вход выполнен успешно!", true);
-            getUsers();
-            loadLevel5Users();
+            document.getElementById("welcome-msg").innerText = message + `(Роль: ${role})`;
+            
+            const panel = document.getElementById("admin-panel");
+            
+            if (role == "admin") {
+                panel.style.display = "block";
+                getUsers();
+                loadLevel5Users();
+            } else {
+                panel.style.display = "none";
+            }
         }
 
         function logout() {
             localStorage.removeItem("log");
+            localStorage.removeItem("role");
             location.reload();
         }
 
@@ -121,11 +154,15 @@
             window.event.preventDefault();
             const u = document.getElementById("reg-name").value;
             const p = document.getElementById("reg-pass").value;
+            const regRoleSelect = document.getElementById("reg-role");
+            const r = regRoleSelect ? regRoleSelect.value : "user";
+
+            const registrationDate = new Date().toISOString();
             
             const res = await fetch(`${URL}/users`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: u, password: p })
+                body: JSON.stringify({ username: u, password: p, role: r, createdAt: registrationDate})
             });
 
             const data = await res.json();
@@ -134,9 +171,11 @@
                 document.getElementById("reg-out").style.color = "red";
                 document.getElementById("reg-out").innerText = "Ошибка: "+data.error;
             } else {
-                unlock("Вы успешно зарегистрировались! ID: " + data.id);
+                showNotification(`Пользователь ${u} зарегистрирован`, true);
+                unlock("Вы успешно зарегистрировались! ID: " + data.id, r);
             }
         }
+
 
         async function login() {
             window.event.preventDefault();
@@ -149,23 +188,57 @@
                 body: JSON.stringify({ username: u, password: p, role: "user" })
             });
 
-
             const data = await res.json();
             
             if (data.error) {
                 document.getElementById("log-out").style.color = "red";
                 document.getElementById("log-out").innerText = "Ошибка: " + data.error;
             } else {
-                unlock("Вход выполнен успешно! Добро пожаловать, " + u);
+                const usersRes = await fetch(`${URL}/users`);
+                const usersData = await usersRes.json();
+                let currentUser = usersData.find(user => user.username.toLowerCase() === u.toLowerCase());
+                
+                let userRole = "user";
+                if (currentUser && currentUser.role === "admin") {
+                    userRole = "admin";
+                }
+
+                showNotification("Вход выполнен успешно!", true);
+                unlock("Вход выполнен успешно! Добро пожаловать, " + u, userRole);
             }
         }
 
+
+        async function createUser() {
+            const u = document.getElementById("create-name").value;
+            const p = document.getElementById("create-pass").value;
+
+            const res = await fetch(`${URL}/users`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: u, password: p, role: "user" })
+             });
+             
+            const data = await res.json();
+
+            if (data.error) {
+                showNotification("Ошибка", false);
+            } else {
+                showNotification("Пользователь создан", true);
+                document.getElementById("create-name").value = "";
+                document.getElementById("create-pass").value = "";
+                getUsers();
+            }
+        }
+
+        
         function showNotification(text, isSuccess = true) {
             const el = document.getElementById("notifications");
-            el.innerText = text;
-            el.className = "notification-zone " + (isSuccess ? "success" : "error");
+            if (!el) return;
+            el.innerHTML += `<span>${text}</span><br>`;
             el.style.display = "block";
         }
+
 
 
 
@@ -173,7 +246,7 @@
             const table = document.getElementById("users-table");
             const cardsContainer = document.getElementById("users-cards-container");
 
-            table.innerHTML = "<tr><th>ID</th><th>Username</th></tr>";
+            table.innerHTML = "<tr><th>ID</th><th>Username</th><th>Дата регистрации</th></tr>";
             cardsContainer.innerHTML = "";
 
             if (!usersData || usersData.length === 0 || usersData.error) {
@@ -187,16 +260,20 @@
             }
 
             arr.forEach(user => {
+                const formattedDate = user.createdAt ? new Date(user.createdAt).toLocaleDateString("ru-RU") : "Нет";
+
                 table.innerHTML += `
                     <tr>
                         <td>${user.id}</td>
                         <td>${user.username}</td>
+                        <td>${formattedDate}</td>
                     </tr>`;
 
                 cardsContainer.innerHTML += `
                     <div class="user-card">
                         <p><b>${user.username}</b></p>
                         <p>ID: ${user.id}</p>
+                        <p>Регистрация: ${formattedDate}</p>
                     </div>`;
             });
         }
@@ -223,34 +300,75 @@
 
 
         async function searchUsers() {
-            const txt = document.getElementById("search-text").value;
-            const res = await fetch(`${URL}/users/search?text=${txt}`);
-            const data = await res.json();
-            document.getElementById("search-out").innerText = JSON.stringify(data);
+            const txt = document.getElementById("search-text").value.toLowerCase();
+            const searchOut = document.getElementById("search-out");
+            
+            if (txt === "") {
+                searchOut.innerHTML = "";
+                return;
+            }
+
+            const res = await fetch(`${URL}/users`);
+            const allUsers = await res.json();
+            const filtered = allUsers.filter(user => {
+                return user.username.toLowerCase().includes(txt);
+            });
+
+           searchOut.innerHTML = "";
+
+            if (filtered.length === 0) {
+                searchOut.innerHTML = "<div style='color: gray; margin-top: 5px;'>Ничего не найдено</div>";
+                return;
+            }
+
+            filtered.forEach(user => {
+                searchOut.innerHTML += `
+                    <div>
+                        <b>ID:</b> ${user.id}  <b>Логин:</b> ${user.username}
+                    </div>`;
+            });
         }
+
+
 
         async function sortUsers(order) {
             const res = await fetch(`${URL}/users/sort?order=${order}`);
             const data = await res.json();
-            document.getElementById("sort-out").innerText = JSON.stringify(data);
+            const sortOut = document.getElementById("sort-out");
+            
+            sortOut.innerHTML = "";
+            if (!data || data.length === 0 || data.error) {
+                sortOut.innerHTML = "<div>Нет пользователей для сортировки</div>";
+                return;
+            }
+            
+            data.forEach(user => {
+                sortOut.innerHTML += `
+                    <div">${user.username} (ID: ${user.id})</div>`;
+            });
         }
 
-        async function deleteUser() {
-            const id = document.getElementById("delete-id").value;
-            const res = await fetch(`${URL}/users/${id}`, {
-                method: "DELETE"
-            });
 
-            const data = await res.json();
-            
-            if (data.error) {
-                showNotification("Ошибка: "+ data.error, false);
-            } else {
-                showNotification(data.message || "Пользователь удален", true);
-                document.getElementById("delete-id").value = "";
-                getUsers();
-                loadLevel5Users();
-            }
+
+        async function deleteUser() {
+            const con = confirm("Вы уверены?")
+            if (con == true) {
+                const id = document.getElementById("delete-id").value;
+                const res = await fetch(`${URL}/users/${id}`, {
+                    method: "DELETE"
+                });
+
+                const data = await res.json();
+                
+                if (data.error) {
+                    showNotification("Ошибка", false);
+                } else {
+                    showNotification(data.message || "Пользователь удален", true);
+                    document.getElementById("delete-id").value = "";
+                    getUsers();
+                    loadLevel5Users();
+                }
+                }
         }
 
 
@@ -272,25 +390,49 @@
             });
         }
 
+
         async function level5Delete(id) {
-            await fetch(`${URL}/users/${id}`, { method: "DELETE" });
-            showNotification(`Пользователь с ID ${id} удален`, true);
-            getUsers();
-            loadLevel5Users();
+            const con = confirm("Вы уверены?")
+            if (con == true) {
+                await fetch(`${URL}/users/${id}`, { method: "DELETE" });
+                showNotification(`Пользователь с ID ${id} удален`, true);
+                getUsers();
+                loadLevel5Users();
+            }
         }
 
         async function level5Edit(id) {
             const newPass = prompt("Введите новый пароль:");
             if (!newPass) return;
 
-            await fetch(`${URL}/users/${id}`, {
+            const res = await fetch(`${URL}/users/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ password: newPass })
             });
 
-            showNotification(`Пароль для ID ${id} изменен`, true);
+            const data = await res.json();
+
+            if (data.error) {
+                showNotification("Ошибка", false);
+            } else {
+                showNotification(data.message || "Пароль изменен", true);
+            }
+
         }
+
+
+
+        function themeswitch() {
+            document.body.classList.toggle('dark-theme');
+            if (document.body.classList.contains("dark-theme")) {
+                localStorage.setItem("theme", "dark");
+            } else {
+                localStorage.setItem("theme", "light");
+            }
+        }
+
+
     </script>
 </body>
 </html>
